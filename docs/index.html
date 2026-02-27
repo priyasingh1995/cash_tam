@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cash TAM — Key Numbers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #fff;
+      --border: #e2e8f0;
+      --blue: #2563eb;
+      --blue-light: #dbeafe;
+      --slate: #475569;
+      --slate-light: #94a3b8;
+      --green: #059669;
+      --green-light: #d1fae5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: #1e293b;
+      margin: 0;
+      padding: 1.5rem;
+      line-height: 1.5;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.5rem; color: #0f172a; }
+    .subtitle { color: var(--slate); font-size: 0.95rem; margin-bottom: 1.5rem; }
+    .section { margin-bottom: 2rem; }
+    .section h2 {
+      font-size: 1.1rem; font-weight: 700; color: var(--blue);
+      text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 1rem;
+    }
+    .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+    @media (max-width: 768px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+    .tile {
+      background: linear-gradient(145deg, #fafafa 0%, #f1f5f9 100%);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--slate-light);
+      border-radius: 0.75rem;
+      padding: 1rem 1.25rem;
+      min-height: 5.5rem;
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    .tile.total {
+      background: linear-gradient(145deg, #eff6ff 0%, var(--blue-light) 100%);
+      border-color: #93c5fd;
+      border-left-color: var(--blue);
+      box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
+    }
+    .tile.total .label { color: #1d4ed8; }
+    .tile.green {
+      background: linear-gradient(145deg, #ecfdf5 0%, var(--green-light) 100%);
+      border: 2px solid #6ee7b7;
+      border-left: 5px solid var(--green);
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
+    }
+    .tile.green .label { color: #047857; }
+    .tile .label {
+      font-size: 0.75rem; font-weight: 600; color: var(--slate);
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .tile .value { font-size: 1.35rem; font-weight: 600; color: var(--slate); margin-top: 0.25rem; }
+    .tile.total .value { font-size: 1.5rem; font-weight: 800; color: #1e293b; }
+    .tile.green .value { font-size: 2rem; font-weight: 800; color: #0f172a; }
+    .row-spacer { height: 1rem; }
+    .loading { color: var(--slate); }
+    .err { color: #b91c1c; background: #fef2f2; padding: 1rem; border-radius: 0.5rem; }
+    .updated { font-size: 0.8rem; color: var(--slate); margin-top: 1.5rem; }
+    #chart { max-width: 100%; height: 320px; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Cash TAM — Key Numbers</h1>
+    <p class="subtitle">Organic incidence & TAM metrics (static snapshot, no backend)</p>
+
+    <div id="root" class="loading">Loading dashboard_data.json…</div>
+    <p id="updated" class="updated" style="display:none;"></p>
+  </div>
+
+  <script>
+    (function () {
+      const root = document.getElementById('root');
+      const updatedEl = document.getElementById('updated');
+
+      function fmtPct(v) { return v != null ? v.toFixed(2) + '%' : '—'; }
+      function fmtNum(v) { return v != null ? Number(v).toLocaleString('en-IN') : '—'; }
+
+      function renderOrganic(data) {
+        if (!data || data.error) {
+          return '<div class="err">' + (data && data.error ? data.error : 'No organic data') + '</div>';
+        }
+        const ir = data.incidence_rate || {};
+        const lapu = data.loan_amount_per_user_inr || {};
+        const segs = data.segments || [];
+        let html = '<div class="section"><h2>Organic incidence</h2>';
+        html += '<div class="tiles">';
+        html += '<div class="tile"><span class="label">Incidence rate (PL)</span><span class="value">' + fmtPct(ir.PL) + '</span></div>';
+        html += '<div class="tile"><span class="label">Incidence rate (GL)</span><span class="value">' + fmtPct(ir.GL) + '</span></div>';
+        html += '<div class="tile"><span class="label">Incidence rate (BL)</span><span class="value">' + fmtPct(ir.BL) + '</span></div>';
+        html += '<div class="tile total"><span class="label">Incidence rate (Total)</span><span class="value">' + fmtPct(ir.total_pct) + '</span></div>';
+        html += '</div><div class="row-spacer"></div>';
+        html += '<div class="tiles">';
+        html += '<div class="tile"><span class="label">Loan amount per user (PL) ₹</span><span class="value">' + fmtNum(lapu.PL) + '</span></div>';
+        html += '<div class="tile"><span class="label">Loan amount per user (GL) ₹</span><span class="value">' + fmtNum(lapu.GL) + '</span></div>';
+        html += '<div class="tile"><span class="label">Loan amount per user (BL) ₹</span><span class="value">' + fmtNum(lapu.BL) + '</span></div>';
+        html += '<div class="tile total"><span class="label">Loan amount per user (Total) ₹</span><span class="value">' + fmtNum(lapu.total) + '</span></div>';
+        html += '</div></div>';
+        if (segs.length) {
+          html += '<div class="section"><h2>Top segments (Incidence rate)</h2><div class="tiles">';
+          segs.slice(0, 8).forEach(function (s) {
+            html += '<div class="tile"><span class="label">' + escapeHtml(s.segment) + '</span><span class="value">' + fmtPct(s.incidence_rate_pct) + '</span></div>';
+          });
+          html += '</div></div>';
+        }
+        return html;
+      }
+
+      function renderTam(data) {
+        if (!data || data.error) {
+          return '<div class="section"><h2>TAM</h2><div class="err">' + (data && data.error ? data.error : 'No TAM data') + '</div></div>';
+        }
+        const ir = data.incidence_rate || {};
+        const lapu = data.loan_amount_per_user_inr || {};
+        let html = '<div class="section"><h2>TAM</h2>';
+        html += '<div class="tiles">';
+        html += '<div class="tile green"><span class="label">MAU</span><span class="value">' + fmtNum(data.mau) + '</span></div>';
+        html += '<div class="tile green"><span class="label">TAM (Cr)</span><span class="value">' + fmtNum(data.tam_cr) + '</span></div>';
+        html += '</div><div class="row-spacer"></div>';
+        html += '<div class="tiles">';
+        html += '<div class="tile"><span class="label">Incidence rate (PL)</span><span class="value">' + fmtPct(ir.PL) + '</span></div>';
+        html += '<div class="tile"><span class="label">Incidence rate (GL)</span><span class="value">' + fmtPct(ir.GL) + '</span></div>';
+        html += '<div class="tile"><span class="label">Incidence rate (BL)</span><span class="value">' + fmtPct(ir.BL) + '</span></div>';
+        html += '<div class="tile total"><span class="label">Incidence rate (Total)</span><span class="value">' + fmtPct(ir.total_pct) + '</span></div>';
+        html += '</div><div class="row-spacer"></div>';
+        html += '<div class="tiles">';
+        html += '<div class="tile"><span class="label">Loan amount per user (PL) ₹</span><span class="value">' + fmtNum(lapu.PL) + '</span></div>';
+        html += '<div class="tile"><span class="label">Loan amount per user (GL) ₹</span><span class="value">' + fmtNum(lapu.GL) + '</span></div>';
+        html += '<div class="tile"><span class="label">Loan amount per user (BL) ₹</span><span class="value">' + fmtNum(lapu.BL) + '</span></div>';
+        html += '<div class="tile total"><span class="label">Loan amount per user (Total) ₹</span><span class="value">' + fmtNum(lapu.total) + '</span></div>';
+        html += '</div></div>';
+        return html;
+      }
+
+      function escapeHtml(s) {
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+      }
+
+      fetch('dashboard_data.json')
+        .then(function (r) {
+          if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+          return r.json();
+        })
+        .then(function (d) {
+          root.innerHTML = renderOrganic(d.organic) + renderTam(d.tam);
+          if (d.updated) {
+            updatedEl.textContent = 'Data snapshot: ' + d.updated.replace('T', ' ').slice(0, 19);
+            updatedEl.style.display = 'block';
+          }
+        })
+        .catch(function (e) {
+          root.innerHTML = '<div class="err">Failed to load data: ' + escapeHtml(e.message) + '. Ensure dashboard_data.json is in the same folder (e.g. docs/).</div>';
+        });
+    })();
+  </script>
+</body>
+</html>

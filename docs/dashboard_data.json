@@ -1,0 +1,112 @@
+{
+  "updated": "2026-02-27T18:34:00.634715",
+  "organic": {
+    "incidence_rate": {
+      "PL": 44.19,
+      "GL": 5.9,
+      "BL": 0.67,
+      "total_pct": 50.75
+    },
+    "loan_amount_per_user_inr": {
+      "PL": 11039.0,
+      "GL": 7196.0,
+      "BL": 1130.0,
+      "total": 19365.0
+    },
+    "total_base": 369944.0,
+    "segments": [
+      {
+        "segment": "2WN | PL",
+        "incidence_rate_pct": 47.2,
+        "loan_amount_per_user_inr": 10561.0
+      },
+      {
+        "segment": "Unknown | PL",
+        "incidence_rate_pct": 44.9,
+        "loan_amount_per_user_inr": 8473.0
+      },
+      {
+        "segment": "LPV | PL",
+        "incidence_rate_pct": 40.2,
+        "loan_amount_per_user_inr": 11541.0
+      },
+      {
+        "segment": "LMV | PL",
+        "incidence_rate_pct": 39.7,
+        "loan_amount_per_user_inr": 18167.0
+      },
+      {
+        "segment": "COMMERCIAL | PL",
+        "incidence_rate_pct": 39.5,
+        "loan_amount_per_user_inr": 20896.0
+      },
+      {
+        "segment": "3WT | PL",
+        "incidence_rate_pct": 37.3,
+        "loan_amount_per_user_inr": 8808.0
+      },
+      {
+        "segment": "LGV | PL",
+        "incidence_rate_pct": 28.2,
+        "loan_amount_per_user_inr": 8473.0
+      },
+      {
+        "segment": "COMMERCIAL | GL",
+        "incidence_rate_pct": 26.4,
+        "loan_amount_per_user_inr": 46269.0
+      },
+      {
+        "segment": "LPV | GL",
+        "incidence_rate_pct": 8.1,
+        "loan_amount_per_user_inr": 9805.0
+      },
+      {
+        "segment": "LMV | GL",
+        "incidence_rate_pct": 7.9,
+        "loan_amount_per_user_inr": 13091.0
+      },
+      {
+        "segment": "3WT | GL",
+        "incidence_rate_pct": 7.4,
+        "loan_amount_per_user_inr": 6983.0
+      },
+      {
+        "segment": "LGV | GL",
+        "incidence_rate_pct": 6.8,
+        "loan_amount_per_user_inr": 9142.0
+      },
+      {
+        "segment": "2WN | GL",
+        "incidence_rate_pct": 6.0,
+        "loan_amount_per_user_inr": 6214.0
+      },
+      {
+        "segment": "Unknown | GL",
+        "incidence_rate_pct": 4.9,
+        "loan_amount_per_user_inr": 5240.0
+      },
+      {
+        "segment": "COMMERCIAL | BL",
+        "incidence_rate_pct": 4.5,
+        "loan_amount_per_user_inr": 14925.0
+      }
+    ]
+  },
+  "tam": {
+    "mau": 2000000,
+    "tam_cr": 2817.0,
+    "total_base": 44701.0,
+    "incidence_rate": {
+      "PL": 10.05,
+      "GL": 3.66,
+      "BL": 0.46,
+      "total_pct": 14.17
+    },
+    "loan_amount_per_user_inr": {
+      "PL": 6821.0,
+      "GL": 5931.0,
+      "BL": 1335.0,
+      "total": 14087.0
+    }
+  }
+}
