@@ -1,0 +1,12 @@
+[theme]
+# Force light theme so the app and sidebar are always readable
+base = "light"
+primaryColor = "#2563eb"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f8fafc"
+textColor = "#1e293b"
+font = "sans serif"
+
+[server]
+# Optional: uncomment to tweak behavior
+# headless = true
