@@ -44,6 +44,10 @@ CSV_PATH = "TAM Cash Final - Base inorganic.csv"
 # Set to True only if your CSV stores loan amount in LAKHS (then LAPU is correct but TAM becomes ~100x smaller).
 LOAN_AMOUNT_CSV_IN_LAKHS = False
 DIMENSION_COLS = ["Vehicle Class", "Credit score", "Loan type", "Ticket size"]
+# Display label for dimensions (e.g. "Vehicle" instead of "Vehicle Class")
+DIMENSION_LABEL = {"Vehicle Class": "Vehicle"}
+def _dim_label(col: str) -> str:
+    return DIMENSION_LABEL.get(col, col)
 NUMERIC_AGG_COLS = ["Total base", "Count of loans opened", "Loan amount (INR Cr)"]
 # Total base: "first" keeps TAM at expected level (total_base_ref stays smaller).
 # Use "sum" only if your base is split by sub-segment and you want LAPU = sum(loan_amt)/sum(base).
@@ -117,6 +121,33 @@ def apply_filters(
     if ticket:
         out = out[out["Ticket size"].astype(str).isin([str(x) for x in ticket])]
     return out
+
+
+def checkbox_multiselect(label: str, options: list, default: Optional[list] = None, key_prefix: str = "cb") -> list:
+    """Render multi-selection as checkboxes in an expander. Empty default = no filter (all unchecked)."""
+    if default is None:
+        default = []
+    # Compute current selection from session state for label
+    n_selected = sum(1 for i, opt in enumerate(options) if st.session_state.get(f"{key_prefix}_{i}", opt in default))
+    expander_label = f"**{label}** — {n_selected} selected" if options else f"**{label}**"
+    with st.sidebar.expander(expander_label, expanded=False):
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Select all", key=f"{key_prefix}_sa"):
+                for i in range(len(options)):
+                    st.session_state[f"{key_prefix}_{i}"] = True
+                st.rerun()
+        with c2:
+            if st.button("Clear all", key=f"{key_prefix}_ca"):
+                for i in range(len(options)):
+                    st.session_state[f"{key_prefix}_{i}"] = False
+                st.rerun()
+        selected = []
+        for i, opt in enumerate(options):
+            k = f"{key_prefix}_{i}"
+            if st.checkbox(str(opt), value=st.session_state.get(k, opt in default), key=k):
+                selected.append(opt)
+    return selected
 
 
 def compute_derived(df: pd.DataFrame, mau: float, total_base_ref: Optional[float] = None) -> pd.DataFrame:
@@ -243,21 +274,31 @@ st.sidebar.divider()
 if view == "TAM":
     st.sidebar.subheader("Filters & settings")
     mau = st.sidebar.number_input("MAU (Monthly Active Users)", min_value=1, value=DEFAULT_MAU, step=10000, key="tam_mau")
-    filter_vehicle = st.sidebar.multiselect("Vehicle Class", options=sorted(raw_df["Vehicle Class"].dropna().unique().tolist()), default=[], key="tam_fv")
-    filter_credit = st.sidebar.multiselect("Credit score", options=sort_credit_scores_ascending(raw_df["Credit score"].dropna().unique().tolist()), default=[], key="tam_fc")
-    filter_loan = st.sidebar.multiselect("Loan type", options=sorted(raw_df["Loan type"].dropna().unique().tolist()), default=[], key="tam_fl")
-    filter_ticket = st.sidebar.multiselect("Ticket size", options=sorted(raw_df["Ticket size"].dropna().unique().tolist()), default=[], key="tam_ft")
-    group_by = st.sidebar.multiselect("Group by (1 or 2)", options=DIMENSION_COLS, default=DEFAULT_GROUPBY, key="tam_group_by")
+    _vehicle_opts = sorted(raw_df["Vehicle Class"].dropna().unique().tolist())
+    _credit_opts = sort_credit_scores_ascending(raw_df["Credit score"].dropna().unique().tolist())
+    _loan_opts = sorted(raw_df["Loan type"].dropna().unique().tolist())
+    _ticket_opts = sorted(raw_df["Ticket size"].dropna().unique().tolist())
+    filter_vehicle = checkbox_multiselect("Vehicle", _vehicle_opts, default=[], key_prefix="tam_fv")
+    filter_credit = checkbox_multiselect("Credit score", _credit_opts, default=[], key_prefix="tam_fc")
+    filter_loan = checkbox_multiselect("Loan type", _loan_opts, default=[], key_prefix="tam_fl")
+    filter_ticket = checkbox_multiselect("Ticket size", _ticket_opts, default=[], key_prefix="tam_ft")
+    group_by = checkbox_multiselect("Group by (1 or 2)", [_dim_label(c) for c in DIMENSION_COLS], default=[_dim_label(c) for c in DEFAULT_GROUPBY], key_prefix="tam_group_by")
     if len(group_by) > 2:
         group_by = group_by[:2]
+    _label_to_col = {_dim_label(c): c for c in DIMENSION_COLS}
+    group_by = [_label_to_col.get(g, g) for g in group_by]
     sort_by_metric = st.sidebar.selectbox("Sort table by", options=list(METRIC_OPTIONS.keys()), index=list(METRIC_OPTIONS.keys()).index(DEFAULT_METRIC), key="tam_sort_metric")
     selected_metric_col = METRIC_OPTIONS[sort_by_metric]
     selected_metric_label = sort_by_metric
     top_n = st.sidebar.slider("Max segments in bar chart", min_value=5, max_value=50, value=DEFAULT_TOP_N, key="tam_top_n")
-    ct_row = st.sidebar.selectbox("Crosstab TAM — Row", options=DIMENSION_COLS, index=0, key="tam_ct_row")
-    ct_col = st.sidebar.selectbox("Crosstab TAM — Column", options=[c for c in DIMENSION_COLS if c != ct_row], index=0, key="tam_ct_col")
-    lapu_row = st.sidebar.selectbox("Crosstab LAPU — Row", options=DIMENSION_COLS, index=0, key="tam_lapu_row")
-    lapu_col = st.sidebar.selectbox("Crosstab LAPU — Column", options=[c for c in DIMENSION_COLS if c != lapu_row], index=0, key="tam_lapu_col")
+    _ct_row_label = st.sidebar.selectbox("Crosstab TAM — Row", options=[_dim_label(c) for c in DIMENSION_COLS], index=0, key="tam_ct_row")
+    ct_row = _label_to_col.get(_ct_row_label, _ct_row_label)
+    _ct_col_label = st.sidebar.selectbox("Crosstab TAM — Column", options=[_dim_label(c) for c in DIMENSION_COLS if c != ct_row], index=0, key="tam_ct_col")
+    ct_col = _label_to_col.get(_ct_col_label, _ct_col_label)
+    _lapu_row_label = st.sidebar.selectbox("Crosstab LAPU — Row", options=[_dim_label(c) for c in DIMENSION_COLS], index=0, key="tam_lapu_row")
+    lapu_row = _label_to_col.get(_lapu_row_label, _lapu_row_label)
+    _lapu_col_label = st.sidebar.selectbox("Crosstab LAPU — Column", options=[_dim_label(c) for c in DIMENSION_COLS if c != lapu_row], index=0, key="tam_lapu_col")
+    lapu_col = _label_to_col.get(_lapu_col_label, _lapu_col_label)
 elif view == "Segment Comparison":
     st.sidebar.subheader("Segment comparison")
     comp_vehicle = []
@@ -265,18 +306,23 @@ elif view == "Segment Comparison":
     comp_loan = []
     comp_ticket = []
     mau_comp = st.sidebar.number_input("MAU (for TAM)", min_value=1, value=DEFAULT_MAU, step=10000, key="tam_comp_mau")
-    tam_comp_breakdown = st.sidebar.selectbox("Breakdown by", options=DIMENSION_COLS, index=1, key="tam_comp_breakdown")
-    tam_comp_segment_dim = st.sidebar.selectbox("Segment dim", options=DIMENSION_COLS, index=0, key="tam_comp_seg_dim")
+    _label_to_col_comp = {_dim_label(c): c for c in DIMENSION_COLS}
+    _comp_breakdown_label = st.sidebar.selectbox("Breakdown by", options=[_dim_label(c) for c in DIMENSION_COLS], index=1, key="tam_comp_breakdown")
+    tam_comp_breakdown = _label_to_col_comp.get(_comp_breakdown_label, _comp_breakdown_label)
+    _comp_segment_label = st.sidebar.selectbox("Segment dim", options=[_dim_label(c) for c in DIMENSION_COLS], index=0, key="tam_comp_seg_dim")
+    tam_comp_segment_dim = _label_to_col_comp.get(_comp_segment_label, _comp_segment_label)
     _comp_df_for_opts = apply_filters(raw_df, comp_vehicle, comp_credit, comp_loan, comp_ticket)
     _opts = (sort_credit_scores_ascending(_comp_df_for_opts[tam_comp_segment_dim].dropna().unique().tolist()) if tam_comp_segment_dim == "Credit score" else sorted(_comp_df_for_opts[tam_comp_segment_dim].dropna().unique().tolist())) if (not _comp_df_for_opts.empty and tam_comp_segment_dim in _comp_df_for_opts.columns) else []
     _default_left = ["LMV"] if "LMV" in _opts else (_opts[:1] if _opts else [])
     _default_right = ["2WN"] if "2WN" in _opts else (_opts[1:2] if len(_opts) > 1 else [])
-    tam_comp_left = st.sidebar.multiselect("Left side: segment(s)", options=_opts, default=_default_left, key="tam_comp_left")
-    tam_comp_right = st.sidebar.multiselect("Right side: segment(s)", options=_opts, default=_default_right, key="tam_comp_right")
+    tam_comp_left = checkbox_multiselect("Left side: segment(s)", _opts, default=_default_left, key_prefix="tam_comp_left")
+    tam_comp_right = checkbox_multiselect("Right side: segment(s)", _opts, default=_default_right, key_prefix="tam_comp_right")
 else:
     st.sidebar.subheader("Filters & settings")
-    base_vehicle = st.sidebar.multiselect("Vehicle Class", options=sorted(raw_df["Vehicle Class"].dropna().unique().tolist()), default=[], key="tam_base_fv")
-    base_credit = st.sidebar.multiselect("Credit score", options=sort_credit_scores_ascending(raw_df["Credit score"].dropna().unique().tolist()), default=[], key="tam_base_fc")
+    _base_vehicle_opts = sorted(raw_df["Vehicle Class"].dropna().unique().tolist())
+    _base_credit_opts = sort_credit_scores_ascending(raw_df["Credit score"].dropna().unique().tolist())
+    base_vehicle = checkbox_multiselect("Vehicle", _base_vehicle_opts, default=[], key_prefix="tam_base_fv")
+    base_credit = checkbox_multiselect("Credit score", _base_credit_opts, default=[], key_prefix="tam_base_fc")
     base_loan = []
     base_ticket = []
 
@@ -320,7 +366,7 @@ if view == "TAM":
                 _cat_share = None
                 total_tam = total_tam_raw
 
-    st.caption(f"MAU = {mau:,} | Group by: {', '.join(group_by) if group_by else 'None (overall)'} | Showing TAM, Loan Amount per User (INR), Incidence Rate, Average ticket size (INR)")
+    st.caption(f"MAU = {mau:,} | Group by: {', '.join(_dim_label(g) for g in group_by) if group_by else 'None (overall)'} | Showing TAM, Loan Amount per User (INR), Incidence Rate, Average ticket size (INR)")
 
     if not filtered_df.empty and not agg_df.empty:
         # Total summary strip (for current filtered view only)
@@ -328,7 +374,7 @@ if view == "TAM":
         if filters_active:
             filter_parts = []
             if filter_vehicle:
-                filter_parts.append(f"Vehicle Class: {', '.join(filter_vehicle)}")
+                filter_parts.append(f"Vehicle: {', '.join(filter_vehicle)}")
             if filter_credit:
                 filter_parts.append(f"Credit score: {', '.join(filter_credit)}")
             if filter_loan:
@@ -351,7 +397,7 @@ if view == "TAM":
         else:
             st.caption("Total TAM = sum of all segment TAMs in the table below (effective MAU).")
         if filters_active and len(group_by) == 2:
-            st.info("With **Group by: 2 dimensions**, the table has multiple segments (e.g. LMV + 700-800, LMV + 800+). Total TAM is the **sum of all those rows** — it will not equal any single bar. For one total that matches one bar, use **Group by: Vehicle Class** only.")
+            st.info("With **Group by: 2 dimensions**, the table has multiple segments (e.g. LMV + 700-800, LMV + 800+). Total TAM is the **sum of all those rows** — it will not equal any single bar. For one total that matches one bar, use **Group by: Vehicle** only.")
         st.markdown('<div class="key-numbers-mau-tam-row"></div>', unsafe_allow_html=True)
 
         agg_by_loan = aggregate_df(filtered_df, ["Loan type"], mau, total_base_ref=view_base)
@@ -555,18 +601,18 @@ if view == "TAM":
             pivot_tam_cross = agg_cross.pivot(index=ct_row, columns=ct_col, values="tam_cr").fillna(0)
             fig_cross = px.imshow(
                 pivot_tam_cross,
-                title=f"TAM (Cr) — {ct_row} × {ct_col}",
-                labels=dict(x=ct_col, y=ct_row, color="TAM (Cr)"),
+                title=f"TAM (Cr) — {_dim_label(ct_row)} × {_dim_label(ct_col)}",
+                labels=dict(x=_dim_label(ct_col), y=_dim_label(ct_row), color="TAM (Cr)"),
                 aspect="auto",
                 color_continuous_scale=CHART_COLOR_SCALE,
             )
             fig_cross.update_layout(xaxis_tickangle=-45, margin=dict(b=100), coloraxis_colorbar_tickformat=".0f")
             st.plotly_chart(fig_cross, use_container_width=True, key="tam_cross")
-            st.caption(f"Rows: {ct_row}, Columns: {ct_col}. Same filters and MAU as above.")
+            st.caption(f"Rows: {_dim_label(ct_row)}, Columns: {_dim_label(ct_col)}. Same filters and MAU as above.")
             # Table view of crosstab with conditional formatting (red = low, green = high)
-            st.subheader(f"TAM (Cr) by {ct_row} × {ct_col} — table")
+            st.subheader(f"TAM (Cr) by {_dim_label(ct_row)} × {_dim_label(ct_col)} — table")
             display_pivot = pivot_tam_cross.copy()
-            display_pivot.index.name = ct_row
+            display_pivot.index.name = _dim_label(ct_row)
             display_pivot = display_pivot.round(0)
 
             def _ratio_to_rgb(ratio: float) -> str:
@@ -591,7 +637,7 @@ if view == "TAM":
             total_style = "border:1px solid #ccc; padding:6px; text-align:right; font-weight:700; background:#e2e8f0;"
 
             html = '<div style="overflow:auto; max-height:450px;"><table style="border-collapse:collapse; width:100%; font-size:14px;">'
-            html += f"<thead><tr><th style='border:1px solid #ccc; padding:6px; text-align:left; background:#f0f0f0;'>{_esc(ct_row)}</th>"
+            html += f"<thead><tr><th style='border:1px solid #ccc; padding:6px; text-align:left; background:#f0f0f0;'>{_esc(_dim_label(ct_row))}</th>"
             for c in display_pivot.columns:
                 html += f"<th style='border:1px solid #ccc; padding:6px; text-align:right; background:#f0f0f0;'>{_esc(c)}</th>"
             html += f"<th style='{total_style}'>Total</th></tr></thead><tbody>"
@@ -622,17 +668,17 @@ if view == "TAM":
             pivot_lapu = agg_cross_lapu.pivot(index=lapu_row, columns=lapu_col, values="loan_amt_per_user").fillna(0) * 1e7
             fig_lapu = px.imshow(
                 pivot_lapu,
-                title=f"Loan Amount per User (INR) — {lapu_row} × {lapu_col}",
-                labels=dict(x=lapu_col, y=lapu_row, color="Loan Amt per User (INR)"),
+                title=f"Loan Amount per User (INR) — {_dim_label(lapu_row)} × {_dim_label(lapu_col)}",
+                labels=dict(x=_dim_label(lapu_col), y=_dim_label(lapu_row), color="Loan Amt per User (INR)"),
                 aspect="auto",
                 color_continuous_scale=CHART_COLOR_SCALE,
             )
             fig_lapu.update_layout(xaxis_tickangle=-45, margin=dict(b=100))
             st.plotly_chart(fig_lapu, use_container_width=True, key="tam_lapu_ct")
-            st.caption(f"Rows: {lapu_row}, Columns: {lapu_col}. Same filters and MAU as above.")
-            st.subheader(f"Loan Amount per User (INR) by {lapu_row} × {lapu_col} — table")
+            st.caption(f"Rows: {_dim_label(lapu_row)}, Columns: {_dim_label(lapu_col)}. Same filters and MAU as above.")
+            st.subheader(f"Loan Amount per User (INR) by {_dim_label(lapu_row)} × {_dim_label(lapu_col)} — table")
             display_lapu = pivot_lapu.copy()
-            display_lapu.index.name = lapu_row
+            display_lapu.index.name = _dim_label(lapu_row)
             display_lapu = display_lapu.round(0)
 
             def _ratio_to_rgb_lapu(ratio: float) -> str:
@@ -666,7 +712,7 @@ if view == "TAM":
             total_style_l = "border:1px solid #ccc; padding:6px; text-align:right; font-weight:700; background:#e2e8f0;"
 
             html_l = '<div style="overflow:auto; max-height:450px;"><table style="border-collapse:collapse; width:100%; font-size:14px;">'
-            html_l += f"<thead><tr><th style='border:1px solid #ccc; padding:6px; text-align:left; background:#f0f0f0;'>{_esc_lapu(lapu_row)}</th>"
+            html_l += f"<thead><tr><th style='border:1px solid #ccc; padding:6px; text-align:left; background:#f0f0f0;'>{_esc_lapu(_dim_label(lapu_row))}</th>"
             for c in display_lapu.columns:
                 html_l += f"<th style='border:1px solid #ccc; padding:6px; text-align:right; background:#f0f0f0;'>{_esc_lapu(c)}</th>"
             html_l += f"<th style='{total_style_l}'>Avg (row)</th></tr></thead><tbody>"
@@ -713,6 +759,7 @@ if view == "TAM":
                 "loan_amt_per_user": "Loan Amount per User (INR)",
                 "avg_ticket_size_inr": "Average ticket size (INR)",
                 "tam_cr": "TAM (Cr)",
+                "Vehicle Class": "Vehicle",
             }
         )
         # Formatted view for display (%, 2 decimals, commas)
@@ -728,7 +775,7 @@ if view == "TAM":
         if group_by:
             total_fmt = {col: "" for col in display_fmt.columns}
             for g in group_by:
-                total_fmt[g] = "Total"
+                total_fmt[_dim_label(g) if g in DIMENSION_LABEL else g] = "Total"
             total_fmt["Total base"] = f"{int(total_base):,}"
             total_fmt["Count of loans opened"] = f"{total_loans:,.0f}"
             total_fmt["Loan amount (INR Cr)"] = f"{total_loan_amt:.2f}"
@@ -807,27 +854,27 @@ elif view == "Segment Comparison":
             )
             # Base size (Total base) by breakdown — as % of segment total
             st.subheader("Base size")
-            st.caption(f"Base size by {tam_comp_breakdown} as % of that segment's total base (bars sum to 100% per side).")
+            st.caption(f"Base size by {_dim_label(tam_comp_breakdown)} as % of that segment's total base (bars sum to 100% per side).")
             col_base_l, col_base_r = st.columns(2)
             with col_base_l:
-                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{tam_comp_segment_dim}:</span> {left_label}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{_dim_label(tam_comp_segment_dim)}:</span> {left_label}</div>', unsafe_allow_html=True)
                 if not agg_left.empty:
                     tot_base_left = agg_left["Total base"].sum()
                     agg_left["_pct_base"] = (100 * agg_left["Total base"] / tot_base_left) if tot_base_left and tot_base_left != 0 else 0
                     agg_left["_base_txt"] = agg_left["_pct_base"].apply(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
-                    fig_base_l = px.bar(agg_left, x="_x", y="_pct_base", title=f"Base size (% of segment) by {tam_comp_breakdown}", labels=dict(_x=tam_comp_breakdown, _pct_base="Share (%)"), color="_pct_base", color_continuous_scale=CHART_COLOR_SCALE, text="_base_txt")
+                    fig_base_l = px.bar(agg_left, x="_x", y="_pct_base", title=f"Base size (% of segment) by {_dim_label(tam_comp_breakdown)}", labels=dict(_x=_dim_label(tam_comp_breakdown), _pct_base="Share (%)"), color="_pct_base", color_continuous_scale=CHART_COLOR_SCALE, text="_base_txt")
                     fig_base_l.update_traces(textposition="outside", textfont_size=11)
                     fig_base_l.update_layout(showlegend=False, xaxis_tickangle=-45, margin=dict(b=100), yaxis=dict(range=[0, 105], ticksuffix="%"), coloraxis_showscale=True)
                     st.plotly_chart(fig_base_l, use_container_width=True, key="tam_comp_base_l")
                 else:
                     st.caption("No data.")
             with col_base_r:
-                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{tam_comp_segment_dim}:</span> {right_label}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{_dim_label(tam_comp_segment_dim)}:</span> {right_label}</div>', unsafe_allow_html=True)
                 if not agg_right.empty:
                     tot_base_right = agg_right["Total base"].sum()
                     agg_right["_pct_base"] = (100 * agg_right["Total base"] / tot_base_right) if tot_base_right and tot_base_right != 0 else 0
                     agg_right["_base_txt"] = agg_right["_pct_base"].apply(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
-                    fig_base_r = px.bar(agg_right, x="_x", y="_pct_base", title=f"Base size (% of segment) by {tam_comp_breakdown}", labels=dict(_x=tam_comp_breakdown, _pct_base="Share (%)"), color="_pct_base", color_continuous_scale=CHART_COLOR_SCALE, text="_base_txt")
+                    fig_base_r = px.bar(agg_right, x="_x", y="_pct_base", title=f"Base size (% of segment) by {_dim_label(tam_comp_breakdown)}", labels=dict(_x=_dim_label(tam_comp_breakdown), _pct_base="Share (%)"), color="_pct_base", color_continuous_scale=CHART_COLOR_SCALE, text="_base_txt")
                     fig_base_r.update_traces(textposition="outside", textfont_size=11)
                     fig_base_r.update_layout(showlegend=False, xaxis_tickangle=-45, margin=dict(b=100), yaxis=dict(range=[0, 105], ticksuffix="%"), coloraxis_showscale=True)
                     st.plotly_chart(fig_base_r, use_container_width=True, key="tam_comp_base_r")
@@ -841,82 +888,82 @@ elif view == "Segment Comparison":
             agg_right["_pct_tam"] = (100 * agg_right["tam_cr"] / tot_tam_r) if tot_tam_r and tot_tam_r != 0 else 0
 
             st.subheader("Share of TAM (%)")
-            st.caption(f"Share of segment TAM by {tam_comp_breakdown}. Left: {left_label} | Right: {right_label}.")
+            st.caption(f"Share of segment TAM by {_dim_label(tam_comp_breakdown)}. Left: {left_label} | Right: {right_label}.")
             col_l, col_r = st.columns(2)
             with col_l:
-                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{tam_comp_segment_dim}:</span> {left_label}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{_dim_label(tam_comp_segment_dim)}:</span> {left_label}</div>', unsafe_allow_html=True)
                 if agg_left.empty:
                     st.caption("No data.")
                 else:
                     agg_left["_pct_txt"] = agg_left["_pct_tam"].apply(lambda v: f"{v:.0f}%" if pd.notna(v) else "")
-                    fig_tam_l = px.bar(agg_left, x="_x", y="_pct_tam", title=f"Share of TAM (%) by {tam_comp_breakdown}", labels=dict(_x=tam_comp_breakdown, _pct_tam="Share (%)"), color="_pct_tam", color_continuous_scale=CHART_COLOR_SCALE, text="_pct_txt")
+                    fig_tam_l = px.bar(agg_left, x="_x", y="_pct_tam", title=f"Share of TAM (%) by {_dim_label(tam_comp_breakdown)}", labels=dict(_x=_dim_label(tam_comp_breakdown), _pct_tam="Share (%)"), color="_pct_tam", color_continuous_scale=CHART_COLOR_SCALE, text="_pct_txt")
                     fig_tam_l.update_traces(textposition="outside", textfont_size=11)
                     fig_tam_l.update_layout(showlegend=False, xaxis_tickangle=-45, margin=dict(b=100), yaxis=dict(range=[0, 105], ticksuffix="%"), coloraxis_showscale=True)
                     st.plotly_chart(fig_tam_l, use_container_width=True, key="tam_comp_tam_l")
             with col_r:
-                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{tam_comp_segment_dim}:</span> {right_label}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{_dim_label(tam_comp_segment_dim)}:</span> {right_label}</div>', unsafe_allow_html=True)
                 if agg_right.empty:
                     st.caption("No data.")
                 else:
                     agg_right["_pct_txt"] = agg_right["_pct_tam"].apply(lambda v: f"{v:.0f}%" if pd.notna(v) else "")
-                    fig_tam_r = px.bar(agg_right, x="_x", y="_pct_tam", title=f"Share of TAM (%) by {tam_comp_breakdown}", labels=dict(_x=tam_comp_breakdown, _pct_tam="Share (%)"), color="_pct_tam", color_continuous_scale=CHART_COLOR_SCALE, text="_pct_txt")
+                    fig_tam_r = px.bar(agg_right, x="_x", y="_pct_tam", title=f"Share of TAM (%) by {_dim_label(tam_comp_breakdown)}", labels=dict(_x=_dim_label(tam_comp_breakdown), _pct_tam="Share (%)"), color="_pct_tam", color_continuous_scale=CHART_COLOR_SCALE, text="_pct_txt")
                     fig_tam_r.update_traces(textposition="outside", textfont_size=11)
                     fig_tam_r.update_layout(showlegend=False, xaxis_tickangle=-45, margin=dict(b=100), yaxis=dict(range=[0, 105], ticksuffix="%"), coloraxis_showscale=True)
                     st.plotly_chart(fig_tam_r, use_container_width=True, key="tam_comp_tam_r")
 
             st.subheader("Incidence Rate")
-            st.caption(f"Incidence rate (loans ÷ base) by {tam_comp_breakdown} for each segment. Can exceed 100% when users have multiple loans.")
+            st.caption(f"Incidence rate (loans ÷ base) by {_dim_label(tam_comp_breakdown)} for each segment. Can exceed 100% when users have multiple loans.")
             col_ir_l, col_ir_r = st.columns(2)
             with col_ir_l:
-                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{tam_comp_segment_dim}:</span> {left_label}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{_dim_label(tam_comp_segment_dim)}:</span> {left_label}</div>', unsafe_allow_html=True)
                 if agg_left.empty:
                     st.caption("No data.")
                 else:
                     agg_left["_y_ir"] = agg_left["new_incidence_rate"]
                     agg_left["_ir_txt"] = agg_left["_y_ir"].apply(lambda v: f"{v*100:.1f}%" if pd.notna(v) else "")
-                    fig_ir_l = px.bar(agg_left, x="_x", y="_y_ir", title=f"Incidence Rate by {tam_comp_breakdown}", labels=dict(_x=tam_comp_breakdown, _y_ir="Incidence Rate"), color="_y_ir", color_continuous_scale=CHART_COLOR_SCALE, text="_ir_txt")
+                    fig_ir_l = px.bar(agg_left, x="_x", y="_y_ir", title=f"Incidence Rate by {_dim_label(tam_comp_breakdown)}", labels=dict(_x=_dim_label(tam_comp_breakdown), _y_ir="Incidence Rate"), color="_y_ir", color_continuous_scale=CHART_COLOR_SCALE, text="_ir_txt")
                     fig_ir_l.update_traces(textposition="outside", textfont_size=11)
                     fig_ir_l.update_layout(showlegend=False, xaxis_tickangle=-45, margin=dict(b=100), yaxis_tickformat=".1%", coloraxis_colorbar_tickformat=".1%", coloraxis_showscale=True)
                     st.plotly_chart(fig_ir_l, use_container_width=True, key="tam_comp_ir_l")
             with col_ir_r:
-                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{tam_comp_segment_dim}:</span> {right_label}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{_dim_label(tam_comp_segment_dim)}:</span> {right_label}</div>', unsafe_allow_html=True)
                 if agg_right.empty:
                     st.caption("No data.")
                 else:
                     agg_right["_y_ir"] = agg_right["new_incidence_rate"]
                     agg_right["_ir_txt"] = agg_right["_y_ir"].apply(lambda v: f"{v*100:.1f}%" if pd.notna(v) else "")
-                    fig_ir_r = px.bar(agg_right, x="_x", y="_y_ir", title=f"Incidence Rate by {tam_comp_breakdown}", labels=dict(_x=tam_comp_breakdown, _y_ir="Incidence Rate"), color="_y_ir", color_continuous_scale=CHART_COLOR_SCALE, text="_ir_txt")
+                    fig_ir_r = px.bar(agg_right, x="_x", y="_y_ir", title=f"Incidence Rate by {_dim_label(tam_comp_breakdown)}", labels=dict(_x=_dim_label(tam_comp_breakdown), _y_ir="Incidence Rate"), color="_y_ir", color_continuous_scale=CHART_COLOR_SCALE, text="_ir_txt")
                     fig_ir_r.update_traces(textposition="outside", textfont_size=11)
                     fig_ir_r.update_layout(showlegend=False, xaxis_tickangle=-45, margin=dict(b=100), yaxis_tickformat=".1%", coloraxis_colorbar_tickformat=".1%", coloraxis_showscale=True)
                     st.plotly_chart(fig_ir_r, use_container_width=True, key="tam_comp_ir_r")
 
             st.subheader("Loan Amount per User (INR)")
             st.caption(
-                "**Formula:** For each " + tam_comp_breakdown + " bucket, **LAPU (INR) = (Total loan amount in Cr for that bucket ÷ Total base for that bucket) × 10⁷**. "
+                "**Formula:** For each " + _dim_label(tam_comp_breakdown) + " bucket, **LAPU (INR) = (Total loan amount in Cr for that bucket ÷ Total base for that bucket) × 10⁷**. "
                 "Total loan amount and total base are summed over the selected segment (e.g. " + left_label + "). "
-                "Total base is aggregated with **first** per (Vehicle Class, Credit score), so when base is split across many rows (e.g. by Loan type/Ticket size), the denominator can be smaller than the full base and LAPU can look high. "
+                "Total base is aggregated with **first** per (Vehicle, Credit score), so when base is split across many rows (e.g. by Loan type/Ticket size), the denominator can be smaller than the full base and LAPU can look high. "
                 "800+ or other buckets show 0 when there is no data for that bucket in the segment."
             )
             col_l2, col_r2 = st.columns(2)
             with col_l2:
-                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{tam_comp_segment_dim}:</span> {left_label}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{_dim_label(tam_comp_segment_dim)}:</span> {left_label}</div>', unsafe_allow_html=True)
                 if agg_left.empty:
                     st.caption("No data.")
                 else:
                     agg_left["_y_lapu"] = agg_left["loan_amt_per_user"] * 1e7
                     agg_left["_lapu_txt"] = agg_left["_y_lapu"].apply(lambda v: f"{v:,.0f}" if pd.notna(v) else "")
-                    fig_lapu_l = px.bar(agg_left, x="_x", y="_y_lapu", title=f"Loan Amount per User (INR) by {tam_comp_breakdown}", labels=dict(_x=tam_comp_breakdown, _y_lapu="INR"), color="_y_lapu", color_continuous_scale=CHART_COLOR_SCALE, text="_lapu_txt")
+                    fig_lapu_l = px.bar(agg_left, x="_x", y="_y_lapu", title=f"Loan Amount per User (INR) by {_dim_label(tam_comp_breakdown)}", labels=dict(_x=_dim_label(tam_comp_breakdown), _y_lapu="INR"), color="_y_lapu", color_continuous_scale=CHART_COLOR_SCALE, text="_lapu_txt")
                     fig_lapu_l.update_traces(textposition="outside", textfont_size=11)
                     fig_lapu_l.update_layout(showlegend=False, xaxis_tickangle=-45, margin=dict(b=100), coloraxis_showscale=True)
                     st.plotly_chart(fig_lapu_l, use_container_width=True, key="tam_comp_lapu_l")
             with col_r2:
-                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{tam_comp_segment_dim}:</span> {right_label}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="{COMPARE_SEGMENT_PILL_STYLE}"><span style="font-size: 0.9rem;">{_dim_label(tam_comp_segment_dim)}:</span> {right_label}</div>', unsafe_allow_html=True)
                 if agg_right.empty:
                     st.caption("No data.")
                 else:
                     agg_right["_y_lapu"] = agg_right["loan_amt_per_user"] * 1e7
                     agg_right["_lapu_txt"] = agg_right["_y_lapu"].apply(lambda v: f"{v:,.0f}" if pd.notna(v) else "")
-                    fig_lapu_r = px.bar(agg_right, x="_x", y="_y_lapu", title=f"Loan Amount per User (INR) by {tam_comp_breakdown}", labels=dict(_x=tam_comp_breakdown, _y_lapu="INR"), color="_y_lapu", color_continuous_scale=CHART_COLOR_SCALE, text="_lapu_txt")
+                    fig_lapu_r = px.bar(agg_right, x="_x", y="_y_lapu", title=f"Loan Amount per User (INR) by {_dim_label(tam_comp_breakdown)}", labels=dict(_x=_dim_label(tam_comp_breakdown), _y_lapu="INR"), color="_y_lapu", color_continuous_scale=CHART_COLOR_SCALE, text="_lapu_txt")
                     fig_lapu_r.update_traces(textposition="outside", textfont_size=11)
                     fig_lapu_r.update_layout(showlegend=False, xaxis_tickangle=-45, margin=dict(b=100), coloraxis_showscale=True)
                     st.plotly_chart(fig_lapu_r, use_container_width=True, key="tam_comp_lapu_r")
@@ -939,8 +986,8 @@ else:
         cs_split = sort_df_by_credit_score_ascending(cs_split, ["Credit score"])
         pie_col1, pie_col2 = st.columns(2)
         with pie_col1:
-            st.markdown("#### Vehicle Class split")
-            fig_vc_pie = px.pie(vc_split, values="Total base", names="Vehicle Class", title="Total base % by Vehicle Class",
+            st.markdown("#### Vehicle split")
+            fig_vc_pie = px.pie(vc_split, values="Total base", names="Vehicle Class", title="Total base % by Vehicle",
                 color_discrete_sequence=getattr(px.colors.qualitative, PIE_VEHICLE_CLASS))
             fig_vc_pie.update_traces(textposition="inside", textinfo="percent+label", texttemplate="%{label}<br>%{percent:.1%}")
             st.plotly_chart(fig_vc_pie, use_container_width=True, key="tam_base_vc_pie")

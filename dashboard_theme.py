@@ -135,6 +135,11 @@ DASHBOARD_CSS = f"""
         background-color: #ffffff !important;
         color: {SLATE_DARK} !important;
     }}
+    /* Reduce top blank space in main content */
+    [data-testid="stAppViewContainer"] main .block-container {{
+        padding-top: 0.5rem !important;
+        padding-bottom: 2rem !important;
+    }}
 
     [data-testid="stMetricValue"] {{
         font-size: 1.5rem;
@@ -377,6 +382,7 @@ DASHBOARD_CSS = f"""
         padding: 0.5rem 1rem !important;
         box-shadow: {BTN_BOX_SHADOW} !important;
         transition: all 0.2s ease !important;
+        white-space: nowrap !important;
     }}
     div[data-testid="stButton"] > button:hover {{
         background: {BTN_PRIMARY_HOVER} !important;
