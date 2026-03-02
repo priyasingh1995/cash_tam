@@ -49,6 +49,16 @@ SLATE_LABEL = "#64748b"
 SLATE_VALUE = "#475569"
 SLATE_DARK = "#1e293b"
 
+# Key Numbers row accents (IR vs LAPU vs Avg ticket)
+IR_ACCENT = "#059669"
+IR_BG = "#ecfdf5"
+LAPU_ACCENT = "#d97706"
+LAPU_BG = "#fffbeb"
+ATS_ACCENT = "#7c3aed"
+ATS_BG = "#f5f3ff"
+TAM_ACCENT = "#db2777"
+TAM_BG = "#fdf2f8"
+
 # Comparison UI (banner + segment pills) — same blue/slate family
 COMPARE_BG_START = BLUE_BG_LIGHT
 COMPARE_BG_END = BLUE_BG_MID
@@ -157,62 +167,96 @@ DASHBOARD_CSS = f"""
     }}
     .key-number-total, .key-number-total-blue {{
         background: linear-gradient(145deg, {BLUE_BG_LIGHT} 0%, {BLUE_BG_MID} 100%) !important;
-        padding: 1rem 1.25rem;
-        border-radius: 0.75rem;
+        padding: 0.65rem 1rem;
+        border-radius: 0.6rem;
         border: 1px solid {BLUE_BORDER};
         box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
         border-left: 4px solid {BLUE_PRIMARY};
-        height: 6rem;
+        height: 4.5rem;
+        min-height: 4.5rem;
+        min-width: 8rem;
+        margin-bottom: 0.5rem;
         display: flex;
         flex-direction: column;
         justify-content: center;
         box-sizing: border-box;
     }}
     .key-number-total .knt-label, .key-number-total-blue .knt-label {{
-        font-size: 0.8rem;
+        font-size: 0.75rem;
         font-weight: 700;
         color: {BLUE_PRIMARY_DARK};
         text-transform: uppercase;
         letter-spacing: 0.04em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }}
     .key-number-total .knt-value, .key-number-total-blue .knt-value {{
-        font-size: 1.5rem;
+        font-size: 1.25rem;
         font-weight: 800;
         color: {SLATE_DARK};
         letter-spacing: -0.02em;
+        white-space: nowrap;
     }}
     .key-number-product {{
         background: linear-gradient(145deg, {SLATE_BG} 0%, {SLATE_BG_MID} 100%) !important;
-        padding: 1rem 1.25rem;
-        border-radius: 0.75rem;
+        padding: 0.65rem 1rem;
+        border-radius: 0.6rem;
         border: 1px solid {SLATE_BORDER};
         border-left: 4px solid {SLATE_ACCENT};
-        height: 6rem;
+        height: 4.5rem;
+        min-height: 4.5rem;
+        min-width: 6.5rem;
+        margin-bottom: 0.5rem;
         display: flex;
         flex-direction: column;
         justify-content: center;
         box-sizing: border-box;
     }}
     .key-number-product .knp-label {{
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         font-weight: 500;
         color: {SLATE_LABEL};
         text-transform: uppercase;
         letter-spacing: 0.04em;
+        word-break: break-word;
+        line-height: 1.15;
+        margin-bottom: 0.2rem;
     }}
     .key-number-product .knp-value {{
-        font-size: 1.35rem;
+        font-size: 1.15rem;
         font-weight: 600;
         color: {SLATE_VALUE};
     }}
+    .key-number-product--ir {{
+        border-left: 4px solid {IR_ACCENT} !important;
+        background: linear-gradient(145deg, {IR_BG} 0%, #d1fae5 100%) !important;
+    }}
+    .key-number-product--ir .knp-label {{ color: #047857; font-weight: 600; }}
+    .key-number-product--lapu {{
+        border-left: 4px solid {LAPU_ACCENT} !important;
+        background: linear-gradient(145deg, {LAPU_BG} 0%, #fef3c7 100%) !important;
+    }}
+    .key-number-product--lapu .knp-label {{ color: #b45309; font-weight: 600; }}
+    .key-number-product--ats {{
+        border-left: 4px solid {ATS_ACCENT} !important;
+        background: linear-gradient(145deg, {ATS_BG} 0%, #ede9fe 100%) !important;
+    }}
+    .key-number-product--ats .knp-label {{ color: #6d28d9; font-weight: 600; }}
+    .key-number-product--tam {{
+        border-left: 4px solid {TAM_ACCENT} !important;
+        background: linear-gradient(145deg, {TAM_BG} 0%, #fbcfe8 100%) !important;
+    }}
+    .key-number-product--tam .knp-label {{ color: #be185d; font-weight: 600; }}
     .key-number-orange {{
         background: linear-gradient(145deg, {BLUE_BG_LIGHT} 0%, {BLUE_BG_MID} 100%) !important;
-        padding: 1.25rem 1.5rem;
-        border-radius: 1rem;
+        padding: 1rem 1.25rem;
+        border-radius: 0.75rem;
         border: 2px solid {BLUE_BORDER};
         box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2), inset 0 1px 0 rgba(255,255,255,0.5);
         border-left: 5px solid {BLUE_PRIMARY};
-        height: 6rem;
+        min-height: 5rem;
+        height: auto;
         display: flex;
         flex-direction: column;
         justify-content: center;
@@ -233,7 +277,12 @@ DASHBOARD_CSS = f"""
         letter-spacing: -0.02em;
     }}
     .key-numbers-mau-tam-row {{ margin-top: 1.5rem; height: 0.5rem; }}
-    .key-numbers-row-spacer {{ margin-top: 1.25rem; height: 0.25rem; }}
+    .key-numbers-row-spacer {{ margin-top: 1.5rem; height: 0.4rem; }}
+    .key-numbers-row-title {{ font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }}
+    .key-numbers-row-title--ir {{ color: #047857; }}
+    .key-numbers-row-title--lapu {{ color: #b45309; }}
+    .key-numbers-row-title--ats {{ color: #6d28d9; }}
+    .key-numbers-row-title--tam {{ color: #be185d; }}
     div[data-testid="stTabs"] [data-baseweb="tab-list"] {{ gap: 0.5rem; }}
     div[data-testid="stTabs"] [data-baseweb="tab"] {{
         background: linear-gradient(135deg, {TAB_BG} 0%, {TAB_BG_END} 100%);

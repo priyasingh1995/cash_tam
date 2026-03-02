@@ -120,13 +120,16 @@ def apply_filters(
 
 
 def compute_derived(df: pd.DataFrame, mau: float, total_base_ref: Optional[float] = None) -> pd.DataFrame:
-    """Add Incidence Rate, Loan Amount per User, TAM. Safe division.
+    """Add Incidence Rate, Loan Amount per User, TAM, Average ticket size (INR). Safe division.
     When total_base_ref is set, TAM uses effective MAU: MAU * (segment base / total_base_ref) so segment TAMs sum to overall TAM.
+    Average ticket size = sum of loans (INR) / count of loans = (Loan amount in Cr / Count of loans) * 1e7.
     """
     out = df.copy()
     base = out["Total base"].replace(0, pd.NA)
     out["new_incidence_rate"] = (out["Count of loans opened"] / base).fillna(0)
     out["loan_amt_per_user"] = (out["Loan amount (INR Cr)"] / base).fillna(0)
+    count_loans = out["Count of loans opened"].replace(0, pd.NA)
+    out["avg_ticket_size_inr"] = (out["Loan amount (INR Cr)"] / count_loans).fillna(0) * 1e7  # INR
     if total_base_ref and total_base_ref != 0:
         # TAM = MAU * (segment Loan amount / total_base_ref) so segment TAMs add up to overall TAM
         out["tam_cr"] = (mau * out["Loan amount (INR Cr)"] / total_base_ref).fillna(0)
@@ -233,11 +236,11 @@ if st.sidebar.button("Refresh", key="tam_refresh_btn", help="Reload data from fi
     st.rerun()
 st.sidebar.caption("If the dashboard still looks wrong, refresh your browser (F5) after clicking **Refresh**.")
 
-view = st.sidebar.radio("View", ["Market Overview", "Segment Comparison", "Base Composition"], key="tam_view", label_visibility="collapsed")
+view = st.sidebar.radio("View", ["TAM", "Segment Comparison", "Base Composition"], key="tam_view", label_visibility="collapsed")
 st.sidebar.caption(f"**{view}**")
 st.sidebar.divider()
 
-if view == "Market Overview":
+if view == "TAM":
     st.sidebar.subheader("Filters & settings")
     mau = st.sidebar.number_input("MAU (Monthly Active Users)", min_value=1, value=DEFAULT_MAU, step=10000, key="tam_mau")
     filter_vehicle = st.sidebar.multiselect("Vehicle Class", options=sorted(raw_df["Vehicle Class"].dropna().unique().tolist()), default=[], key="tam_fv")
@@ -280,7 +283,7 @@ else:
 # ---------------------------------------------------------------------------
 # Main content: driven by sidebar View
 # ---------------------------------------------------------------------------
-if view == "Market Overview":
+if view == "TAM":
     filtered_df = apply_filters(raw_df, filter_vehicle, filter_credit, filter_loan, filter_ticket)
     agg_df = pd.DataFrame()
     if filtered_df.empty:
@@ -306,6 +309,7 @@ if view == "Market Overview":
             total_loan_amt = agg_df["Loan amount (INR Cr)"].sum()
             total_nir = (total_loans / total_base) if total_base and total_base != 0 else 0
             total_lapu = (total_loan_amt / total_base) if total_base and total_base != 0 else 0
+            total_avg_ticket = (total_loan_amt * 1e7 / total_loans) if total_loans and total_loans != 0 else 0
             total_tam_raw = float(agg_df["tam_cr"].sum())
             total_base_overall = view_total_base(raw_df)
             _filters_on = filter_vehicle or filter_credit or filter_loan or filter_ticket
@@ -316,7 +320,7 @@ if view == "Market Overview":
                 _cat_share = None
                 total_tam = total_tam_raw
 
-    st.caption(f"MAU = {mau:,} | Group by: {', '.join(group_by) if group_by else 'None (overall)'} | Showing TAM, Loan Amount per User (INR), Incidence Rate")
+    st.caption(f"MAU = {mau:,} | Group by: {', '.join(group_by) if group_by else 'None (overall)'} | Showing TAM, Loan Amount per User (INR), Incidence Rate, Average ticket size (INR)")
 
     if not filtered_df.empty and not agg_df.empty:
         # Total summary strip (for current filtered view only)
@@ -336,43 +340,7 @@ if view == "Market Overview":
         else:
             st.subheader("Key Numbers")
 
-        agg_by_loan = aggregate_df(filtered_df, ["Loan type"], mau, total_base_ref=view_base)
-        def _loan_val(lt: str, col: str):
-            r = agg_by_loan[agg_by_loan["Loan type"].astype(str).str.upper() == lt.upper()]
-            return r[col].iloc[0] if len(r) else None
-
-        kr1, kr2, kr3, kr4 = st.columns(4)
-        with kr1:
-            v = _loan_val("PL", "new_incidence_rate")
-            val_str = f"{v*100:.2f}%" if v is not None else "—"
-            st.markdown(f'<div class="key-number-product"><div class="knp-label">Incidence rate (PL)</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
-        with kr2:
-            v = _loan_val("GL", "new_incidence_rate")
-            val_str = f"{v*100:.2f}%" if v is not None else "—"
-            st.markdown(f'<div class="key-number-product"><div class="knp-label">Incidence rate (GL)</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
-        with kr3:
-            v = _loan_val("BL", "new_incidence_rate")
-            val_str = f"{v*100:.2f}%" if v is not None else "—"
-            st.markdown(f'<div class="key-number-product"><div class="knp-label">Incidence rate (BL)</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
-        with kr4:
-            st.markdown(f'<div class="key-number-total-blue"><div class="knt-label">Incidence rate (Total)</div><div class="knt-value">{total_nir*100:.2f}%</div></div>', unsafe_allow_html=True)
-        st.markdown('<div class="key-numbers-row-spacer"></div>', unsafe_allow_html=True)
-        ku1, ku2, ku3, ku4 = st.columns(4)
-        with ku1:
-            v = _loan_val("PL", "loan_amt_per_user")
-            val_str = f"{(v*1e7):,.0f}" if v is not None else "—"
-            st.markdown(f'<div class="key-number-product"><div class="knp-label">Loan Amount per User (PL) INR</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
-        with ku2:
-            v = _loan_val("GL", "loan_amt_per_user")
-            val_str = f"{(v*1e7):,.0f}" if v is not None else "—"
-            st.markdown(f'<div class="key-number-product"><div class="knp-label">Loan Amount per User (GL) INR</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
-        with ku3:
-            v = _loan_val("BL", "loan_amt_per_user")
-            val_str = f"{(v*1e7):,.0f}" if v is not None else "—"
-            st.markdown(f'<div class="key-number-product"><div class="knp-label">Loan Amount per User (BL) INR</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
-        with ku4:
-            st.markdown(f'<div class="key-number-total-blue"><div class="knt-label">Loan Amount per User (Total) INR</div><div class="knt-value">{(total_lapu*1e7):,.0f}</div></div>', unsafe_allow_html=True)
-        st.markdown('<div class="key-numbers-mau-tam-row"></div>', unsafe_allow_html=True)
+        # MAU and TAM (Cr) at the top
         r1a, r1b = st.columns(2)
         with r1a:
             st.markdown(f'<div class="key-number-orange"><div class="kno-label">MAU</div><div class="kno-value">{mau:,}</div></div>', unsafe_allow_html=True)
@@ -384,6 +352,140 @@ if view == "Market Overview":
             st.caption("Total TAM = sum of all segment TAMs in the table below (effective MAU).")
         if filters_active and len(group_by) == 2:
             st.info("With **Group by: 2 dimensions**, the table has multiple segments (e.g. LMV + 700-800, LMV + 800+). Total TAM is the **sum of all those rows** — it will not equal any single bar. For one total that matches one bar, use **Group by: Vehicle Class** only.")
+        st.markdown('<div class="key-numbers-mau-tam-row"></div>', unsafe_allow_html=True)
+
+        agg_by_loan = aggregate_df(filtered_df, ["Loan type"], mau, total_base_ref=view_base)
+        loan_types = (
+            agg_by_loan.sort_values("new_incidence_rate", ascending=False)["Loan type"].astype(str).tolist()
+            if not agg_by_loan.empty else []
+        )
+        def _loan_val(lt: str, col: str):
+            r = agg_by_loan[agg_by_loan["Loan type"].astype(str).str.upper() == lt.upper()]
+            return r[col].iloc[0] if len(r) else None
+
+        # Incidence rate: one tile per loan type + Total (all loan types included in total)
+        n_loan = len(loan_types) + 1
+        max_per_row = 6  # when more, use two rows so tiles are wider and readable
+        use_two_rows = len(loan_types) > max_per_row
+
+        # ----- TAM contribution (Cr) by loan type — right after MAU & TAM -----
+        st.markdown('<p class="key-numbers-row-title key-numbers-row-title--tam">TAM contribution (Cr)</p>', unsafe_allow_html=True)
+        if use_two_rows:
+            cols_tam_1 = st.columns(max_per_row)
+            for i, lt in enumerate(loan_types[:max_per_row]):
+                with cols_tam_1[i]:
+                    v = _loan_val(lt, "tam_cr")
+                    val_str = f"{v:,.0f}" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--tam"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            n_second = len(loan_types) - max_per_row + 1
+            cols_tam_2 = st.columns(n_second)
+            for i, lt in enumerate(loan_types[max_per_row:]):
+                with cols_tam_2[i]:
+                    v = _loan_val(lt, "tam_cr")
+                    val_str = f"{v:,.0f}" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--tam"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            with cols_tam_2[-1]:
+                st.markdown(f'<div class="key-number-total-blue"><div class="knt-label">Total</div><div class="knt-value">{total_tam:,.0f}</div></div>', unsafe_allow_html=True)
+        else:
+            cols_tam = st.columns(n_loan)
+            for i, lt in enumerate(loan_types):
+                with cols_tam[i]:
+                    v = _loan_val(lt, "tam_cr")
+                    val_str = f"{v:,.0f}" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--tam"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            with cols_tam[-1]:
+                st.markdown(f'<div class="key-number-total-blue"><div class="knt-label">Total</div><div class="knt-value">{total_tam:,.0f}</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="key-numbers-row-spacer"></div>', unsafe_allow_html=True)
+
+        # ----- Incidence Rate -----
+        st.markdown('<p class="key-numbers-row-title key-numbers-row-title--ir">Incidence Rate</p>', unsafe_allow_html=True)
+        if use_two_rows:
+            # Row 1: first max_per_row loan types
+            cols_ir_1 = st.columns(max_per_row)
+            for i, lt in enumerate(loan_types[:max_per_row]):
+                with cols_ir_1[i]:
+                    v = _loan_val(lt, "new_incidence_rate")
+                    val_str = f"{v*100:.2f}%" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--ir"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            # Row 2: remaining loan types + Total
+            n_second = len(loan_types) - max_per_row + 1
+            cols_ir_2 = st.columns(n_second)
+            for i, lt in enumerate(loan_types[max_per_row:]):
+                with cols_ir_2[i]:
+                    v = _loan_val(lt, "new_incidence_rate")
+                    val_str = f"{v*100:.2f}%" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--ir"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            with cols_ir_2[-1]:
+                st.markdown(f'<div class="key-number-total-blue"><div class="knt-label">Total</div><div class="knt-value">{total_nir*100:.2f}%</div></div>', unsafe_allow_html=True)
+        else:
+            cols_ir = st.columns(n_loan)
+            for i, lt in enumerate(loan_types):
+                with cols_ir[i]:
+                    v = _loan_val(lt, "new_incidence_rate")
+                    val_str = f"{v*100:.2f}%" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--ir"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            with cols_ir[-1]:
+                st.markdown(f'<div class="key-number-total-blue"><div class="knt-label">Total</div><div class="knt-value">{total_nir*100:.2f}%</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="key-numbers-row-spacer"></div>', unsafe_allow_html=True)
+
+        # ----- Loan Amount per User (INR) -----
+        st.markdown('<p class="key-numbers-row-title key-numbers-row-title--lapu">Loan Amount per User (INR)</p>', unsafe_allow_html=True)
+        if use_two_rows:
+            cols_lapu_1 = st.columns(max_per_row)
+            for i, lt in enumerate(loan_types[:max_per_row]):
+                with cols_lapu_1[i]:
+                    v = _loan_val(lt, "loan_amt_per_user")
+                    val_str = f"{(v*1e7):,.0f}" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--lapu"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            n_second = len(loan_types) - max_per_row + 1
+            cols_lapu_2 = st.columns(n_second)
+            for i, lt in enumerate(loan_types[max_per_row:]):
+                with cols_lapu_2[i]:
+                    v = _loan_val(lt, "loan_amt_per_user")
+                    val_str = f"{(v*1e7):,.0f}" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--lapu"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            with cols_lapu_2[-1]:
+                st.markdown(f'<div class="key-number-total-blue"><div class="knt-label">Total</div><div class="knt-value">{(total_lapu*1e7):,.0f}</div></div>', unsafe_allow_html=True)
+        else:
+            cols_lapu = st.columns(n_loan)
+            for i, lt in enumerate(loan_types):
+                with cols_lapu[i]:
+                    v = _loan_val(lt, "loan_amt_per_user")
+                    val_str = f"{(v*1e7):,.0f}" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--lapu"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            with cols_lapu[-1]:
+                st.markdown(f'<div class="key-number-total-blue"><div class="knt-label">Total</div><div class="knt-value">{(total_lapu*1e7):,.0f}</div></div>', unsafe_allow_html=True)
+
+        # ----- Average ticket size (INR, in Lakh) -----
+        st.markdown('<div class="key-numbers-row-spacer"></div>', unsafe_allow_html=True)
+        st.markdown('<p class="key-numbers-row-title key-numbers-row-title--ats">Average ticket size (INR)</p>', unsafe_allow_html=True)
+        if use_two_rows:
+            cols_ats_1 = st.columns(max_per_row)
+            for i, lt in enumerate(loan_types[:max_per_row]):
+                with cols_ats_1[i]:
+                    v = _loan_val(lt, "avg_ticket_size_inr")
+                    val_str = f"{(v/1e5):.1f} Lakh" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--ats"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            n_second = len(loan_types) - max_per_row + 1
+            cols_ats_2 = st.columns(n_second)
+            for i, lt in enumerate(loan_types[max_per_row:]):
+                with cols_ats_2[i]:
+                    v = _loan_val(lt, "avg_ticket_size_inr")
+                    val_str = f"{(v/1e5):.1f} Lakh" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--ats"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            with cols_ats_2[-1]:
+                st.markdown(f'<div class="key-number-total-blue"><div class="knt-label">Total</div><div class="knt-value">{(total_avg_ticket/1e5):.1f} Lakh</div></div>', unsafe_allow_html=True)
+        else:
+            cols_ats = st.columns(n_loan)
+            for i, lt in enumerate(loan_types):
+                with cols_ats[i]:
+                    v = _loan_val(lt, "avg_ticket_size_inr")
+                    val_str = f"{(v/1e5):.1f} Lakh" if v is not None else "—"
+                    st.markdown(f'<div class="key-number-product key-number-product--ats"><div class="knp-label">{lt}</div><div class="knp-value">{val_str}</div></div>', unsafe_allow_html=True)
+            with cols_ats[-1]:
+                st.markdown(f'<div class="key-number-total-blue"><div class="knt-label">Total</div><div class="knt-value">{(total_avg_ticket/1e5):.1f} Lakh</div></div>', unsafe_allow_html=True)
+
+        st.caption("**Total** incidence rate, LAPU, average ticket size, TAM contribution, and overall TAM include all loan types in the data.")
         st.divider()
 
         # ----- Loan Amount per User and Incidence Rate by segment (bar charts) -----
@@ -601,6 +703,7 @@ if view == "Market Overview":
                 "Loan amount (INR Cr)",
                 "new_incidence_rate",
                 "loan_amt_per_user",
+                "avg_ticket_size_inr",
                 "tam_cr",
             ]
         ].copy()
@@ -608,6 +711,7 @@ if view == "Market Overview":
             columns={
                 "new_incidence_rate": "Incidence Rate",
                 "loan_amt_per_user": "Loan Amount per User (INR)",
+                "avg_ticket_size_inr": "Average ticket size (INR)",
                 "tam_cr": "TAM (Cr)",
             }
         )
@@ -616,6 +720,7 @@ if view == "Market Overview":
         display_fmt["Total base"] = display_fmt["Total base"].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "")
         display_fmt["Incidence Rate"] = display_fmt["Incidence Rate"].apply(lambda x: f"{x*100:.2f}%" if pd.notna(x) else "")
         display_fmt["Loan Amount per User (INR)"] = display_fmt["Loan Amount per User (INR)"].apply(lambda x: f"{(x * 1e7):,.0f}" if pd.notna(x) else "")
+        display_fmt["Average ticket size (INR)"] = display_fmt["Average ticket size (INR)"].apply(lambda x: f"{(x/1e5):.1f}" if pd.notna(x) else "")
         display_fmt["TAM (Cr)"] = display_fmt["TAM (Cr)"].apply(lambda x: f"{x:.0f}" if pd.notna(x) else "")
         display_fmt["Count of loans opened"] = display_fmt["Count of loans opened"].apply(lambda x: f"{round(x):,}" if pd.notna(x) else "")
         display_fmt["Loan amount (INR Cr)"] = display_fmt["Loan amount (INR Cr)"].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "")
@@ -629,6 +734,7 @@ if view == "Market Overview":
             total_fmt["Loan amount (INR Cr)"] = f"{total_loan_amt:.2f}"
             total_fmt["Incidence Rate"] = f"{total_nir*100:.2f}%"
             total_fmt["Loan Amount per User (INR)"] = f"{(total_lapu * 1e7):,.0f}"
+            total_fmt["Average ticket size (INR)"] = f"{(total_avg_ticket/1e5):.1f}"
             total_fmt["TAM (Cr)"] = f"{total_tam:.0f}"
             display_fmt = pd.concat([display_fmt, pd.DataFrame([total_fmt])], ignore_index=True)
         st.dataframe(

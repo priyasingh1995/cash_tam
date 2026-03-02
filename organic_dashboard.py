@@ -199,11 +199,11 @@ st.sidebar.caption("If the dashboard still looks wrong, refresh your browser (F5
 
 dimension_cols_available = [c for c in DIMENSION_COLS if c in raw_df.columns]
 
-view = st.sidebar.radio("View", ["Performance", "Segment Comparison", "Base Composition"], key="organic_view", label_visibility="collapsed")
+view = st.sidebar.radio("View", ["Market Overview", "Segment Comparison", "Base Composition"], key="organic_view", label_visibility="collapsed")
 st.sidebar.caption(f"**{view}**")
 st.sidebar.divider()
 
-if view == "Performance":
+if view == "Market Overview":
     st.sidebar.subheader("Filters & settings")
     main_vehicle = st.sidebar.multiselect("Vehicle Class", options=sorted(raw_df["Vehicle Class"].dropna().unique().tolist()), default=[], key="main_fv")
     main_credit = st.sidebar.multiselect("Credit score", options=sort_credit_scores_ascending(raw_df["Credit score"].dropna().unique().tolist()), default=[], key="main_fc")
@@ -249,7 +249,7 @@ st.divider()
 # ---------------------------------------------------------------------------
 # Main content: driven by sidebar View (no tabs — view selector syncs sidebar + content)
 # ---------------------------------------------------------------------------
-if view == "Performance":
+if view == "Market Overview":
     filtered_main = apply_filters(raw_df, main_vehicle, main_credit, main_loan, main_ticket, main_platform)
     agg_df = pd.DataFrame()
     filters_active = False
