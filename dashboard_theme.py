@@ -56,8 +56,8 @@ LAPU_ACCENT = "#d97706"
 LAPU_BG = "#fffbeb"
 ATS_ACCENT = "#7c3aed"
 ATS_BG = "#f5f3ff"
-TAM_ACCENT = "#db2777"
-TAM_BG = "#fdf2f8"
+TAM_ACCENT = "#e8a598"
+TAM_BG = "#fef7f5"
 
 # Comparison UI (banner + segment pills) — same blue/slate family
 COMPARE_BG_START = BLUE_BG_LIGHT
@@ -245,9 +245,9 @@ DASHBOARD_CSS = f"""
     .key-number-product--ats .knp-label {{ color: #6d28d9; font-weight: 600; }}
     .key-number-product--tam {{
         border-left: 4px solid {TAM_ACCENT} !important;
-        background: linear-gradient(145deg, {TAM_BG} 0%, #fbcfe8 100%) !important;
+        background: linear-gradient(145deg, {TAM_BG} 0%, #fdd5d0 100%) !important;
     }}
-    .key-number-product--tam .knp-label {{ color: #be185d; font-weight: 600; }}
+    .key-number-product--tam .knp-label {{ color: #c4725a; font-weight: 600; }}
     .key-number-orange {{
         background: linear-gradient(145deg, {BLUE_BG_LIGHT} 0%, {BLUE_BG_MID} 100%) !important;
         padding: 1rem 1.25rem;
@@ -282,7 +282,7 @@ DASHBOARD_CSS = f"""
     .key-numbers-row-title--ir {{ color: #047857; }}
     .key-numbers-row-title--lapu {{ color: #b45309; }}
     .key-numbers-row-title--ats {{ color: #6d28d9; }}
-    .key-numbers-row-title--tam {{ color: #be185d; }}
+    .key-numbers-row-title--tam {{ color: #c4725a; }}
     div[data-testid="stTabs"] [data-baseweb="tab-list"] {{ gap: 0.5rem; }}
     div[data-testid="stTabs"] [data-baseweb="tab"] {{
         background: linear-gradient(135deg, {TAB_BG} 0%, {TAB_BG_END} 100%);
