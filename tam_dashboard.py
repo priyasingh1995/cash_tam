@@ -239,6 +239,7 @@ st.sidebar.divider()
 
 if view == "Market Overview":
     st.sidebar.subheader("Filters & settings")
+    mau = st.sidebar.number_input("MAU (Monthly Active Users)", min_value=1, value=DEFAULT_MAU, step=10000, key="tam_mau")
     filter_vehicle = st.sidebar.multiselect("Vehicle Class", options=sorted(raw_df["Vehicle Class"].dropna().unique().tolist()), default=[], key="tam_fv")
     filter_credit = st.sidebar.multiselect("Credit score", options=sort_credit_scores_ascending(raw_df["Credit score"].dropna().unique().tolist()), default=[], key="tam_fc")
     filter_loan = st.sidebar.multiselect("Loan type", options=sorted(raw_df["Loan type"].dropna().unique().tolist()), default=[], key="tam_fl")
@@ -249,7 +250,6 @@ if view == "Market Overview":
     sort_by_metric = st.sidebar.selectbox("Sort table by", options=list(METRIC_OPTIONS.keys()), index=list(METRIC_OPTIONS.keys()).index(DEFAULT_METRIC), key="tam_sort_metric")
     selected_metric_col = METRIC_OPTIONS[sort_by_metric]
     selected_metric_label = sort_by_metric
-    mau = st.sidebar.number_input("MAU (Monthly Active Users)", min_value=1, value=DEFAULT_MAU, step=10000, key="tam_mau")
     top_n = st.sidebar.slider("Max segments in bar chart", min_value=5, max_value=50, value=DEFAULT_TOP_N, key="tam_top_n")
     ct_row = st.sidebar.selectbox("Crosstab TAM — Row", options=DIMENSION_COLS, index=0, key="tam_ct_row")
     ct_col = st.sidebar.selectbox("Crosstab TAM — Column", options=[c for c in DIMENSION_COLS if c != ct_row], index=0, key="tam_ct_col")
